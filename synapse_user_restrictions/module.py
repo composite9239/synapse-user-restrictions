@@ -18,6 +18,8 @@ from synapse_user_restrictions.config import (
     ALL_UNDERSTOOD_PERMISSIONS,
     CREATE_ROOM,
     INVITE,
+    RECEIVE_INVITES,
+    INVITE_ALL,
     ConfigDict,
     RuleResult,
     UserRestrictionsModuleConfig,
@@ -79,4 +81,10 @@ class UserRestrictionsModule:
     async def callback_user_may_invite(
         self, inviter: str, invitee: str, room_id: str
     ) -> bool:
-        return self._apply_rules(inviter, INVITE)
+        return (
+            self._apply_rules(inviter, INVITE)
+            and (
+                self._apply_rules(inviter, INVITE_ALL)
+                or self._apply_rules(invitee, RECEIVE_INVITES)
+            )
+        )
