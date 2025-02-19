@@ -191,4 +191,6 @@ class UserRestrictionsModuleConfig:
 
 INVITE = "invite"
 CREATE_ROOM = "create_room"
-ALL_UNDERSTOOD_PERMISSIONS = frozenset({INVITE, CREATE_ROOM})
+RECEIVE_INVITES = "receive_invites"
+INVITE_ALL = "invite_all"
+ALL_UNDERSTOOD_PERMISSIONS = frozenset({INVITE, CREATE_ROOM, RECEIVE_INVITES, INVITE_ALL})
