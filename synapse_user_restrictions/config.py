@@ -18,6 +18,9 @@ from typing import Any, Dict, Iterable, List, Pattern, Set, TypeVar, cast
 
 import attr
 
+from synapse.module_api import RuleResult
+from attr import s as attr_s, frozen
+
 ConfigDict = Dict[str, Any]
 
 
@@ -142,50 +145,128 @@ class RegexMatchRule:
             match=match_pattern, allow=set(allow_list), deny=set(deny_list)
         )
 
+@attr_s(auto_attribs=True, frozen=True, slots=True)
+class ExactMatchRule:
+    """
+    A single rule that performs exact user ID matches.
+    """
+    # Set of exact user IDs to match against
+    match: Set[str]
+    
+    # Permissions to allow
+    allow: Set[str]
+    
+    # Permissions to deny
+    deny: Set[str]
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+    def apply(self, user_id: str, permission: str) -> RuleResult:
+        """
+        Applies an exact match rule, returning a rule result.
+
+        Arguments:
+            user_id: The Matrix ID (e.g., @bob:example.org) of the user being checked
+            permission: The permission string identifying what is being sought
+        """
+        if user_id not in self.match:
+            return RuleResult.NoDecision
+
+        if permission in self.allow:
+            return RuleResult.Allow
+        if permission in self.deny:
+            return RuleResult.Deny
+        return RuleResult.NoDecision
+
+    @staticmethod
+    def from_config(rule: dict) -> "ExactMatchRule":
+        """
+        Creates an ExactMatchRule from a configuration dictionary.
+        """
+        if "match" not in rule:
+            raise ValueError("Rules must have a 'match' field")
+        if not isinstance(rule["match"], list):
+            raise ValueError("For exact match rules, 'match' must be a list of strings")
+        
+        match_list = check_list_elements_are_strings(
+            rule["match"], "Exact match 'match' field must be a list of strings"
+        )
+
+        allow_list = []
+        if "allow" in rule:
+            if not isinstance(rule["allow"], list):
+                raise ValueError("Rule's 'allow' field must be a list")
+            allow_list = check_list_elements_are_strings(
+                rule["allow"], "Rule's 'allow' field must be a list of strings"
+            )
+            check_all_permissions_understood(allow_list)
+
+        deny_list = []
+        if "deny" in rule:
+            if not isinstance(rule["deny"], list):
+                raise ValueError("Rule's 'deny' field must be a list")
+            deny_list = check_list_elements_are_strings(
+                rule["deny"], "Rule's 'deny' field must be a list of strings"
+            )
+            check_all_permissions_understood(deny_list)
+
+        return ExactMatchRule(
+            match=set(match_list),
+            allow=set(allow_list),
+            deny=set(deny_list)
+        )
+
+from typing import Union
+RuleType = Union[RegexMatchRule, ExactMatchRule]
+
+@attr_s(auto_attribs=True, frozen=True, slots=True)
 class UserRestrictionsModuleConfig:
     """
-    The root-level configuration.
+    The root-level configuration for the UserRestrictionsModule.
     """
-
-    # A list of rules.
-    rules: List[RegexMatchRule]
-
-    # If the rules don't make a judgement about a user for a permission,
-    # this is a list of denied-by-default permissions.
+    # List of rules, which can be either RegexMatchRule or ExactMatchRule
+    rules: List[RuleType]
+    
+    # Permissions denied by default if no rule applies
     default_deny: Set[str]
 
     @staticmethod
-    def from_config(config_dict: ConfigDict) -> "UserRestrictionsModuleConfig":
+    def from_config(config_dict: dict) -> "UserRestrictionsModuleConfig":
+        """
+        Creates a UserRestrictionsModuleConfig from a configuration dictionary.
+        """
         if "rules" not in config_dict:
-            raise ValueError("'rules' list not specified in module configuration.")
-
+            raise ValueError("'rules' list not specified in module configuration")
         if not isinstance(config_dict["rules"], list):
-            raise ValueError("'rules' should be a list.")
+            raise ValueError("'rules' should be a list")
 
         rules = []
         for index, rule in enumerate(config_dict["rules"]):
             if not isinstance(rule, dict):
                 raise ValueError(
-                    f"Rules should be dicts. "
-                    f"Rule number {index + 1} is not (found: {type(rule).__name__})."
+                    f"Rules should be dicts. Rule number {index + 1} is not "
+                    f"(found: {type(rule).__name__})"
+                )
+            match_field = rule.get("match")
+            if isinstance(match_field, str):
+                rules.append(RegexMatchRule.from_config(rule))
+            elif isinstance(match_field, list):
+                rules.append(ExactMatchRule.from_config(rule))
+            else:
+                raise ValueError(
+                    f"Rule number {index + 1}: 'match' must be a string (for regex) "
+                    f"or a list of strings (for exact matches)"
                 )
 
-            rules.append(RegexMatchRule.from_config(rule))
-
-        default_deny = config_dict.get("default_deny")
-        if default_deny is not None:
-            if not isinstance(default_deny, list):
-                raise ValueError("'default_deny' should be a list (or unspecified).")
-            check_list_elements_are_strings(
-                default_deny, "'default_deny' should be a list of strings."
-            )
-            check_all_permissions_understood(default_deny)
+        default_deny = config_dict.get("default_deny", [])
+        if not isinstance(default_deny, list):
+            raise ValueError("'default_deny' should be a list (or unspecified)")
+        default_deny_list = check_list_elements_are_strings(
+            default_deny, "'default_deny' should be a list of strings"
+        )
+        check_all_permissions_understood(default_deny_list)
 
         return UserRestrictionsModuleConfig(
             rules=rules,
-            default_deny=set(default_deny) if default_deny is not None else set(),
+            default_deny=set(default_deny_list)
         )
 
 
