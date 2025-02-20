@@ -1,7 +1,20 @@
+# Copyright 2021 The Matrix.org Foundation C.I.C.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import enum
 import re
 from enum import Enum
-from typing import Any, Dict, Iterable, List, Pattern, Set, TypeVar, cast, Optional  # Added Optional here
+from typing import Any, Dict, Iterable, List, Pattern, Set, TypeVar, cast
 
 import attr
 
@@ -65,14 +78,11 @@ class RuleResult(Enum):
 @attr.s(auto_attribs=True, frozen=True, slots=True)
 class RegexMatchRule:
     """
-    A single rule that performs either a regex match or an exact match.
+    A single rule that performs a regex match.
     """
 
-    # regex pattern to match users against, or None if exact_matches is used
-    regex: Optional[Pattern[str]]
-
-    # set of exact user IDs to match, or None if regex is used
-    exact_matches: Optional[Set[str]]
+    # regex pattern to match users against
+    match: Pattern[str]
 
     # permissions to allow
     allow: Set[str]
@@ -82,21 +92,15 @@ class RegexMatchRule:
 
     def apply(self, user_id: str, permission: str) -> RuleResult:
         """
-        Applies the rule, returning a rule result.
+        Applies a regular expression match rule, returning a rule result.
 
         Arguments:
             user_id: the Matrix ID (@bob:example.org) of the user being checked
             permission: permission string identifying what kind of permission
                 is being sought
         """
-        if self.regex is not None:
-            if not self.regex.fullmatch(user_id):
-                return RuleResult.NoDecision
-        elif self.exact_matches is not None:
-            if user_id not in self.exact_matches:
-                return RuleResult.NoDecision
-        else:
-            raise ValueError("Rule has neither regex nor exact_matches set.")
+        if not self.match.fullmatch(user_id):
+            return RuleResult.NoDecision
 
         if permission in self.allow:
             return RuleResult.Allow
@@ -110,48 +114,32 @@ class RegexMatchRule:
     def from_config(rule: ConfigDict) -> "RegexMatchRule":
         if "match" not in rule:
             raise ValueError("Rules must have a 'match' field")
-    
-        match_value = rule["match"]
-        print(f"DEBUG: match_value={match_value}, type={type(match_value)}")  # First debug point
-    
-        if isinstance(match_value, str):
-            print("DEBUG: Treating as regex")  # Debug inside string branch
-            regex_pattern = check_and_compile_regex(match_value)
-            exact_matches = None
-        elif isinstance(match_value, list):
-            print("DEBUG: Treating as exact matches")  # Debug inside list branch
-            exact_matches = set(check_list_elements_are_strings(
-                match_value, "Rule's 'match' list must contain strings."
-            ))
-            regex_pattern = None
-        else:
-            raise ValueError("Rule's 'match' must be a string or a list of strings.")
-    
+        match_pattern = check_and_compile_regex(rule["match"])
+
         if "allow" in rule:
             if not isinstance(rule["allow"], list):
                 raise ValueError("Rule's 'allow' field must be a list.")
+
             allow_list = check_list_elements_are_strings(
                 rule["allow"], "Rule's 'allow' field must be a list of strings."
             )
             check_all_permissions_understood(allow_list)
         else:
             allow_list = []
-    
+
         if "deny" in rule:
             if not isinstance(rule["deny"], list):
                 raise ValueError("Rule's 'deny' field must be a list.")
+
             deny_list = check_list_elements_are_strings(
                 rule["deny"], "Rule's 'deny' field must be a list of strings."
             )
             check_all_permissions_understood(deny_list)
         else:
             deny_list = []
-    
+
         return RegexMatchRule(
-            regex=regex_pattern,
-            exact_matches=exact_matches,
-            allow=set(allow_list),
-            deny=set(deny_list)
+            match=match_pattern, allow=set(allow_list), deny=set(deny_list)
         )
 
 
