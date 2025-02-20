@@ -110,21 +110,23 @@ class RegexMatchRule:
     def from_config(rule: ConfigDict) -> "RegexMatchRule":
         if "match" not in rule:
             raise ValueError("Rules must have a 'match' field")
-
+    
         match_value = rule["match"]
+        print(f"DEBUG: match_value={match_value}, type={type(match_value)}")  # First debug point
+    
         if isinstance(match_value, str):
-            # Single regex pattern
+            print("DEBUG: Treating as regex")  # Debug inside string branch
             regex_pattern = check_and_compile_regex(match_value)
             exact_matches = None
         elif isinstance(match_value, list):
-            # List of exact user IDs
+            print("DEBUG: Treating as exact matches")  # Debug inside list branch
             exact_matches = set(check_list_elements_are_strings(
                 match_value, "Rule's 'match' list must contain strings."
             ))
             regex_pattern = None
         else:
             raise ValueError("Rule's 'match' must be a string or a list of strings.")
-
+    
         if "allow" in rule:
             if not isinstance(rule["allow"], list):
                 raise ValueError("Rule's 'allow' field must be a list.")
@@ -134,7 +136,7 @@ class RegexMatchRule:
             check_all_permissions_understood(allow_list)
         else:
             allow_list = []
-
+    
         if "deny" in rule:
             if not isinstance(rule["deny"], list):
                 raise ValueError("Rule's 'deny' field must be a list.")
@@ -144,7 +146,7 @@ class RegexMatchRule:
             check_all_permissions_understood(deny_list)
         else:
             deny_list = []
-
+    
         return RegexMatchRule(
             regex=regex_pattern,
             exact_matches=exact_matches,
