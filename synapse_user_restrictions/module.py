@@ -37,6 +37,7 @@ class UserRestrictionsModule:
         api.register_spam_checker_callbacks(
             user_may_create_room=self.callback_user_may_create_room,
             user_may_invite=self.callback_user_may_invite,
+            user_may_join_room=self.callback_user_may_join_room,
         )
 
     @staticmethod
