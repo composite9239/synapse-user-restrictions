@@ -97,16 +97,17 @@ class UserRestrictionsModule:
         )
     async def callback_user_may_join_room(self, user: str, room_id: str) -> bool:
         try:
-            # Check if the user is already invited to the room
+            # Check if the user is invited
             invited_users = await self._api.get_invited_users(room_id)
+            logger.info(f"Invited users in {room_id}: {invited_users}")
             if user in invited_users:
                 logger.info(f"User {user} is invited to {room_id}, allowing auto-join")
                 return True
     
-            # Otherwise, apply the permission check
+            # Apply permission check for non-invited users
             result = self._apply_rules(user, JOIN_ROOM)
-            logger.info(f"User {user} attempting to join {room_id}: {'allowed' if result else 'denied'}")
+            logger.info(f"Permission check for {user} to join {room_id}: {'allowed' if result else 'denied'}")
             return result
         except Exception as e:
-            logger.error(f"Error in user_may_join_room callback: {e}")
-            return False  # Deny by default in case of error
+            logger.error(f"Error in user_may_join_room callback for user {user} and room {room_id}: {e}", exc_info=True)
+            return False  # Deny join in case of error
