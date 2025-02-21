@@ -145,27 +145,18 @@ class RegexMatchRule:
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
 class UserRestrictionsModuleConfig:
-    """
-    The root-level configuration.
-    """
-
-    # A list of rules.
     rules: List[RegexMatchRule]
-
-    # If the rules don't make a judgement about a user for a permission,
-    # this is a list of denied-by-default permissions.
     default_deny: Set[str]
+    admins: List[str]
 
-    admins: List[str] 
-    
     @staticmethod
     def from_config(config_dict: ConfigDict) -> "UserRestrictionsModuleConfig":
         if "rules" not in config_dict:
             raise ValueError("'rules' list not specified in module configuration.")
-    
+
         if not isinstance(config_dict["rules"], list):
             raise ValueError("'rules' should be a list.")
-    
+
         rules = []
         for index, rule in enumerate(config_dict["rules"]):
             if not isinstance(rule, dict):
@@ -174,7 +165,7 @@ class UserRestrictionsModuleConfig:
                     f"Rule number {index + 1} is not (found: {type(rule).__name__})."
                 )
             rules.append(RegexMatchRule.from_config(rule))
-    
+
         default_deny = config_dict.get("default_deny")
         if default_deny is not None:
             if not isinstance(default_deny, list):
@@ -183,17 +174,17 @@ class UserRestrictionsModuleConfig:
                 default_deny, "'default_deny' should be a list of strings."
             )
             check_all_permissions_understood(default_deny)
-    
-        # Parse the admins field, defaulting to an empty list if not specified
+
         admins = config_dict.get("admins", [])
         if not isinstance(admins, list):
             raise ValueError("'admins' should be a list of strings.")
         check_list_elements_are_strings(admins, "'admins' should be a list of strings.")
-    
+        logger.info(f"Parsed admins from configuration: {admins}")
+
         return UserRestrictionsModuleConfig(
             rules=rules,
             default_deny=set(default_deny) if default_deny is not None else set(),
-            admins=admins,  # Pass the admins list to the config object
+            admins=admins,
         )
 
 
