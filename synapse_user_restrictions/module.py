@@ -20,7 +20,6 @@ from synapse_user_restrictions.config import (
     INVITE,
     RECEIVE_INVITES,
     INVITE_ALL,
-    JOIN_ROOM,
     ConfigDict,
     RuleResult,
     UserRestrictionsModuleConfig,
@@ -37,7 +36,6 @@ class UserRestrictionsModule:
         api.register_spam_checker_callbacks(
             user_may_create_room=self.callback_user_may_create_room,
             user_may_invite=self.callback_user_may_invite,
-            user_may_join_room=self.callback_user_may_join_room,
         )
 
     @staticmethod
@@ -62,24 +60,19 @@ class UserRestrictionsModule:
                 or do not make a decision,
             False if the user is denied from using that permission.
         """
-        if not self._api.is_mine(user_id):  # Skip non-local users
-            logger.info(f"User {user_id} is not local, allowing by default")
-            return True
-    
-        logger.info(f"Applying rules for user {user_id} and permission {permission}")
+        if permission not in ALL_UNDERSTOOD_PERMISSIONS:
+            raise ValueError(f"Permission not recognised: {permission!r}")
+
         for rule in self._config.rules:
             rule_result = rule.apply(user_id, permission)
-            logger.info(f"Rule {rule.match.pattern} result: {rule_result}")
             if rule_result == RuleResult.Allow:
                 return True
             elif rule_result == RuleResult.Deny:
                 return False
-    
+
         if permission in self._config.default_deny:
-            logger.info(f"Permission {permission} is in default_deny, denying")
             return False
-    
-        logger.info(f"No rules matched, allowing by default")
+
         return True
 
     async def callback_user_may_create_room(self, user: str) -> bool:
@@ -95,18 +88,3 @@ class UserRestrictionsModule:
                 or self._apply_rules(invitee, RECEIVE_INVITES)
             )
         )
-    async def callback_user_may_join_room(self, user: str, room_id: str) -> bool:
-        try:
-            # Check if the user is invited
-            membership_state = await self._api.get_membership(room_id, user)
-            if membership_state == "invite":
-                logger.info(f"User {user} is invited to {room_id}, allowing auto-join")
-                return True
-    
-            # Apply permission check for non-invited users
-            result = self._apply_rules(user, JOIN_ROOM)
-            logger.info(f"Permission check for {user} to join {room_id}: {'allowed' if result else 'denied'}")
-            return result
-        except Exception as e:
-            logger.error(f"Error in user_may_join_room callback for user {user} and room {room_id}: {e}", exc_info=True)
-            return False
