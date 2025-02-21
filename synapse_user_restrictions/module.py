@@ -20,6 +20,7 @@ from synapse_user_restrictions.config import (
     INVITE,
     RECEIVE_INVITES,
     INVITE_ALL,
+    JOIN_ROOM,
     ConfigDict,
     RuleResult,
     UserRestrictionsModuleConfig,
