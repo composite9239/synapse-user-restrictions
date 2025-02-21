@@ -14,7 +14,7 @@
 import enum
 import re
 from enum import Enum
-from typing import Any, Dict, Iterable, List, Pattern, Set, TypeVar, cast
+from typing import Any, Dict, Iterable, List, Pattern, Set, TypeVar, Optional, cast
 
 import attr
 
