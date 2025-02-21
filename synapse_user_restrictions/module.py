@@ -98,9 +98,8 @@ class UserRestrictionsModule:
     async def callback_user_may_join_room(self, user: str, room_id: str) -> bool:
         try:
             # Check if the user is invited
-            invited_users = await self._api.get_invited_users(room_id)
-            logger.info(f"Invited users in {room_id}: {invited_users}")
-            if user in invited_users:
+            membership_state = await self._api.get_membership(room_id, user)
+            if membership_state == "invite":
                 logger.info(f"User {user} is invited to {room_id}, allowing auto-join")
                 return True
     
@@ -110,4 +109,4 @@ class UserRestrictionsModule:
             return result
         except Exception as e:
             logger.error(f"Error in user_may_join_room callback for user {user} and room {room_id}: {e}", exc_info=True)
-            return False  # Deny join in case of error
+            return False
