@@ -36,6 +36,7 @@ class UserRestrictionsModule:
         api.register_spam_checker_callbacks(
             user_may_create_room=self.callback_user_may_create_room,
             user_may_invite=self.callback_user_may_invite,
+            user_may_join_room=self.callback_user_may_join_room,
         )
 
     @staticmethod
@@ -60,19 +61,22 @@ class UserRestrictionsModule:
                 or do not make a decision,
             False if the user is denied from using that permission.
         """
+        if not self._api.is_mine(user_id):
+            return True  # Allow non-local users
+    
         if permission not in ALL_UNDERSTOOD_PERMISSIONS:
             raise ValueError(f"Permission not recognised: {permission!r}")
-
+    
         for rule in self._config.rules:
             rule_result = rule.apply(user_id, permission)
             if rule_result == RuleResult.Allow:
                 return True
             elif rule_result == RuleResult.Deny:
                 return False
-
+    
         if permission in self._config.default_deny:
             return False
-
+    
         return True
 
     async def callback_user_may_create_room(self, user: str) -> bool:
@@ -88,3 +92,5 @@ class UserRestrictionsModule:
                 or self._apply_rules(invitee, RECEIVE_INVITES)
             )
         )
+    async def callback_user_may_join_room(self, user: str, room_id: str) -> bool:
+        return self._apply_rules(user, JOIN_ROOM)
