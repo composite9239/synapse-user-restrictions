@@ -13,16 +13,12 @@
 # limitations under the License.
 import enum
 import re
-import logging  # Added import for logging
 from enum import Enum
 from typing import Any, Dict, Iterable, List, Pattern, Set, TypeVar, cast
 
 import attr
 
 ConfigDict = Dict[str, Any]
-
-# Set up logger
-logger = logging.getLogger(__name__)
 
 def check_and_compile_regex(value: Any) -> Pattern[str]:
     """
@@ -83,15 +79,15 @@ class RegexMatchRule:
     deny: Set[str]
 
     def apply(self, user_id: str, permission: str) -> RuleResult:
+        """
+        Applies a regular expression match rule, returning a rule result.
+        """
         if not self.match.fullmatch(user_id):
             return RuleResult.NoDecision
-
         if permission in self.allow:
             return RuleResult.Allow
-
         if permission in self.deny:
             return RuleResult.Deny
-
         return RuleResult.NoDecision
 
     @staticmethod
@@ -131,13 +127,11 @@ class UserRestrictionsModuleConfig:
     """
     rules: List[RegexMatchRule]
     default_deny: Set[str]
-    admins: List[str]
 
     @staticmethod
     def from_config(config_dict: ConfigDict) -> "UserRestrictionsModuleConfig":
         if "rules" not in config_dict:
             raise ValueError("'rules' list not specified in module configuration.")
-
         if not isinstance(config_dict["rules"], list):
             raise ValueError("'rules' should be a list.")
 
@@ -159,16 +153,9 @@ class UserRestrictionsModuleConfig:
             )
             check_all_permissions_understood(default_deny)
 
-        admins = config_dict.get("admins", [])
-        if not isinstance(admins, list):
-            raise ValueError("'admins' should be a list of strings.")
-        check_list_elements_are_strings(admins, "'admins' should be a list of strings.")
-        logger.info(f"Parsed admins from configuration: {admins}")
-
         return UserRestrictionsModuleConfig(
             rules=rules,
             default_deny=set(default_deny) if default_deny is not None else set(),
-            admins=admins,
         )
 
 INVITE = "invite"
@@ -176,5 +163,4 @@ CREATE_ROOM = "create_room"
 RECEIVE_INVITES = "receive_invites"
 INVITE_ALL = "invite_all"
 JOIN_ROOM = "join_room"
-LEAVE_ADMIN_ROOM = "leave_admin_room"
-ALL_UNDERSTOOD_PERMISSIONS = frozenset({INVITE, CREATE_ROOM, RECEIVE_INVITES, INVITE_ALL, JOIN_ROOM, LEAVE_ADMIN_ROOM})
+ALL_UNDERSTOOD_PERMISSIONS = frozenset({INVITE, CREATE_ROOM, RECEIVE_INVITES, INVITE_ALL, JOIN_ROOM})
