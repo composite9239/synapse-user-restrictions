@@ -34,11 +34,11 @@ class UserRestrictionsModule:
         self._api = api
         self._config = config
 
+        # Register spam checker callbacks
         api.register_spam_checker_callbacks(
             user_may_create_room=self.callback_user_may_create_room,
             user_may_invite=self.callback_user_may_invite,
             user_may_join_room=self.callback_user_may_join_room,
-            check_event_allowed=self.check_event_allowed,  # New callback
         )
 
     @staticmethod
@@ -54,13 +54,11 @@ class UserRestrictionsModule:
         If no rules make a decision, the permission will be allowed by default.
 
         Arguments:
-            user_id: the Matrix ID (@bob:example.org) of the user seeking
-                permission
+            user_id: the Matrix ID (@bob:example.org) of the user seeking permission
             permission: the string ID representing the permission being sought
 
         Returns:
-            True if the rules allow the user to use that permission
-                or do not make a decision,
+            True if the rules allow the user to use that permission or no decision is made,
             False if the user is denied from using that permission.
         """
         if permission not in ALL_UNDERSTOOD_PERMISSIONS:
@@ -81,9 +79,7 @@ class UserRestrictionsModule:
     async def callback_user_may_create_room(self, user: str) -> bool:
         return self._apply_rules(user, CREATE_ROOM)
 
-    async def callback_user_may_invite(
-        self, inviter: str, invitee: str, room_id: str
-    ) -> bool:
+    async def callback_user_may_invite(self, inviter: str, invitee: str, room_id: str) -> bool:
         return (
             self._apply_rules(inviter, INVITE)
             and (
@@ -114,32 +110,31 @@ class UserRestrictionsModule:
         """
         Check if an event is allowed, specifically blocking users from leaving a room
         if the only other member is an admin and the user has leave_admin_room denied.
-    
+
         Args:
             event: The event being checked.
             state: The current state of the room.
-    
+
         Returns:
             (True, None) if the event is allowed, (False, None) if it should be blocked.
         """
         if event.type != "m.room.member" or event.membership != "leave":
             return True, None  # Only interested in leave events
-    
+
         user_id = event.state_key  # The user leaving the room
-        room_id = event.room_id
-    
+
         # Get current room members excluding the user leaving
         current_members = [
             state_key
             for (ev_type, state_key), ev in state.items()
             if ev_type == "m.room.member" and ev.membership == "join" and state_key != user_id
         ]
-    
+
         # Check if the only other member is one of the configured admins
-        admins = set(self._config.admins)  # Retrieve admins from the config
+        admins = set(self._config.admins)
         if len(current_members) == 1 and current_members[0] in admins:
             # Check if the user has leave_admin_room denied
             if not self._apply_rules(user_id, LEAVE_ADMIN_ROOM):
                 return False, None  # Block the leave event
-    
+
         return True, None  # Allow the event
