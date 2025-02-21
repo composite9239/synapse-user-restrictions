@@ -13,6 +13,7 @@
 # limitations under the License.
 import enum
 import re
+import logging  # Added import for logging
 from enum import Enum
 from typing import Any, Dict, Iterable, List, Pattern, Set, TypeVar, cast
 
@@ -20,6 +21,8 @@ import attr
 
 ConfigDict = Dict[str, Any]
 
+# Set up logger
+logger = logging.getLogger(__name__)
 
 def check_and_compile_regex(value: Any) -> Pattern[str]:
     """
@@ -33,7 +36,6 @@ def check_and_compile_regex(value: Any) -> Pattern[str]:
         return re.compile(value)
     except re.error as e:
         raise ValueError(f"Invalid regex '{value}': {e.msg}")
-
 
 def check_all_permissions_understood(permissions: Iterable[str]) -> None:
     """
@@ -51,9 +53,7 @@ def check_all_permissions_understood(permissions: Iterable[str]) -> None:
                 f"try one of: {nice_list_of_understood_permissions}"
             )
 
-
 T = TypeVar("T")
-
 
 def check_list_elements_are_strings(
     input: List[Any], failure_message: str
@@ -68,37 +68,21 @@ def check_list_elements_are_strings(
 
     return cast(List[str], input)
 
-
 class RuleResult(Enum):
     NoDecision = enum.auto()
     Allow = enum.auto()
     Deny = enum.auto()
-
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
 class RegexMatchRule:
     """
     A single rule that performs a regex match.
     """
-
-    # regex pattern to match users against
     match: Pattern[str]
-
-    # permissions to allow
     allow: Set[str]
-
-    # permissions to deny
     deny: Set[str]
 
     def apply(self, user_id: str, permission: str) -> RuleResult:
-        """
-        Applies a regular expression match rule, returning a rule result.
-
-        Arguments:
-            user_id: the Matrix ID (@bob:example.org) of the user being checked
-            permission: permission string identifying what kind of permission
-                is being sought
-        """
         if not self.match.fullmatch(user_id):
             return RuleResult.NoDecision
 
@@ -119,7 +103,6 @@ class RegexMatchRule:
         if "allow" in rule:
             if not isinstance(rule["allow"], list):
                 raise ValueError("Rule's 'allow' field must be a list.")
-
             allow_list = check_list_elements_are_strings(
                 rule["allow"], "Rule's 'allow' field must be a list of strings."
             )
@@ -130,7 +113,6 @@ class RegexMatchRule:
         if "deny" in rule:
             if not isinstance(rule["deny"], list):
                 raise ValueError("Rule's 'deny' field must be a list.")
-
             deny_list = check_list_elements_are_strings(
                 rule["deny"], "Rule's 'deny' field must be a list of strings."
             )
@@ -142,9 +124,11 @@ class RegexMatchRule:
             match=match_pattern, allow=set(allow_list), deny=set(deny_list)
         )
 
-
 @attr.s(auto_attribs=True, frozen=True, slots=True)
 class UserRestrictionsModuleConfig:
+    """
+    The root-level configuration.
+    """
     rules: List[RegexMatchRule]
     default_deny: Set[str]
     admins: List[str]
@@ -186,7 +170,6 @@ class UserRestrictionsModuleConfig:
             default_deny=set(default_deny) if default_deny is not None else set(),
             admins=admins,
         )
-
 
 INVITE = "invite"
 CREATE_ROOM = "create_room"
