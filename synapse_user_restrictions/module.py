@@ -62,22 +62,24 @@ class UserRestrictionsModule:
                 or do not make a decision,
             False if the user is denied from using that permission.
         """
-        if not self._api.is_mine(user_id):
-            return True  # Allow non-local users
+        if not self._api.is_mine(user_id):  # Skip non-local users
+            logger.info(f"User {user_id} is not local, allowing by default")
+            return True
     
-        if permission not in ALL_UNDERSTOOD_PERMISSIONS:
-            raise ValueError(f"Permission not recognised: {permission!r}")
-    
+        logger.info(f"Applying rules for user {user_id} and permission {permission}")
         for rule in self._config.rules:
             rule_result = rule.apply(user_id, permission)
+            logger.info(f"Rule {rule.match.pattern} result: {rule_result}")
             if rule_result == RuleResult.Allow:
                 return True
             elif rule_result == RuleResult.Deny:
                 return False
     
         if permission in self._config.default_deny:
+            logger.info(f"Permission {permission} is in default_deny, denying")
             return False
     
+        logger.info(f"No rules matched, allowing by default")
         return True
 
     async def callback_user_may_create_room(self, user: str) -> bool:
