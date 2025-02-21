@@ -20,6 +20,7 @@ from synapse_user_restrictions.config import (
     INVITE,
     RECEIVE_INVITES,
     INVITE_ALL,
+    BLOCK_ROOM_JOIN,
     ConfigDict,
     RuleResult,
     UserRestrictionsModuleConfig,
@@ -36,6 +37,7 @@ class UserRestrictionsModule:
         api.register_spam_checker_callbacks(
             user_may_create_room=self.callback_user_may_create_room,
             user_may_invite=self.callback_user_may_invite,
+            user_may_join_room=self.callback_user_may_join_room,
         )
 
     @staticmethod
@@ -88,3 +90,18 @@ class UserRestrictionsModule:
                 or self._apply_rules(invitee, RECEIVE_INVITES)
             )
         )
+    async def callback_user_may_join_room(self, user: str, room_id: str) -> bool:
+        """
+        Check if a user is allowed to join a room based on the block_room_join permission.
+
+        Args:
+            user: The Matrix ID of the user attempting to join (e.g., "@alice:example.com").
+            room_id: The ID of the room being joined.
+
+        Returns:
+            True if the user can join the room (block_room_join not granted),
+            False if the user is blocked (block_room_join granted).
+        """
+        if self._apply_rules(user, BLOCK_ROOM_JOIN):
+            return False  # Permission granted, so block the join
+        return True  # Permission not granted, so allow the join
