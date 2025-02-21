@@ -112,41 +112,30 @@ class UserRestrictionsModule:
         return False
 
     async def check_event_allowed(self, event: EventBase, state: StateMap[EventBase]) -> tuple[bool, None]:
-        """
-        Check if an event is allowed, specifically blocking users from leaving a room
-        if the only other member is an admin and the user has leave_admin_room denied.
-
-        Args:
-            event: The event being checked.
-            state: The current state of the room (not used directly here, but passed by Synapse).
-
-        Returns:
-            (True, None) if the event is allowed, (False, None) if it should be blocked.
-        """
-        # Only process leave events
         if event.type != "m.room.member" or event.membership != "leave":
             return True, None
-
-        user_id = event.state_key  # The user attempting to leave
-        room_id = event.room_id   # The room they are leaving
-
-        # Get the list of currently joined members, excluding the user leaving
+    
+        user_id = event.state_key
+        room_id = event.room_id
+    
+        # Get joined members
         joined_members = await self._api.get_joined_members(room_id)
-        current_members = [member for member in joined_members if member != user_id]
-
-        # Log the current members for debugging
-        logger.info(f"Current members excluding {user_id} in room {room_id}: {current_members}")
-
-        # Get the set of admin user IDs from the configuration
+        # Explicitly filter for users with "join" membership to exclude ghost members
+        room_state = await self._api.get_room_state(room_id)
+        current_members = [
+            member for member in joined_members
+            if member != user_id and room_state.get((member, "m.room.member"), {}).get("membership") == "join"
+        ]
+        logger.info(f"Verified current members excluding {user_id} in room {room_id}: {current_members}")
+    
         admins = set(self._config.admins)
-
-        # Check if the room has exactly one other member and that member is an admin
+        logger.info(f"Configured admins: {admins}")
+    
         if len(current_members) == 1 and current_members[0] in admins:
-            # Check if the user is denied the leave_admin_room permission
             has_permission = self._apply_rules(user_id, LEAVE_ADMIN_ROOM)
             logger.info(f"Permission check for {user_id} on 'leave_admin_room': {has_permission}")
             if not has_permission:
                 logger.info(f"Blocked {user_id} from leaving room {room_id} with only admin {current_members[0]}")
-                return False, None  # Block the leave event
-
-        return True, None  # Allow the event by default
+                return False, None
+    
+        return True, None
