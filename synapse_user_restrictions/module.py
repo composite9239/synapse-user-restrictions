@@ -90,7 +90,7 @@ class UserRestrictionsModule:
                 or self._apply_rules(invitee, RECEIVE_INVITES)
             )
         )
-    async def callback_user_may_join_room(self, user: str, room_id: str) -> bool:
+    async def callback_user_may_join_room(self, user: str, room_id: str, is_invited: bool) -> bool:
         """
         Check if a user is allowed to join a room based on the block_room_join permission.
 
