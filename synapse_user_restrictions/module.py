@@ -13,6 +13,8 @@
 # limitations under the License.
 from synapse.module_api import ModuleApi
 from synapse.module_api.errors import ConfigError
+import logging
+logger = logging.getLogger(__name__)
 
 from synapse_user_restrictions.config import (
     ALL_UNDERSTOOD_PERMISSIONS,
@@ -87,14 +89,19 @@ class UserRestrictionsModule:
         )
 
     async def callback_user_may_join_room(self, user: str, room_id: str, is_invited: bool) -> bool:
+        logger.info(f"Checking {user} for {room_id}, is_invited={is_invited}")
         try:
             state = await self._api.get_room_state(room_id)
             member_event = state.get(("m.room.member", user))
             if member_event and member_event["content"].get("membership") == "join":
+                logger.info(f"{user} is joined, allowing action")
                 return True
         except Exception as e:
+            logger.warning(f"State check failed for {room_id}: {str(e)}")
     
         has_join_room = self._apply_rules(user, JOIN_ROOM)
         if has_join_room or is_invited:
+            logger.info(f"Allowing join: has_join_room={has_join_room}, is_invited={is_invited}")
             return True
+        logger.info(f"Denying join: has_join_room={has_join_room}, is_invited={is_invited}")
         return False
