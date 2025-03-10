@@ -88,17 +88,24 @@ class UserRestrictionsModule:
 
     async def callback_user_may_join_room(self, user: str, room_id: str, is_invited: bool) -> bool:
         """
-        Check if a user is allowed to join a room based on the join_room permission and invitation status.
-
+        Check if a user is allowed to join a room based on the join_room permission and invitation status,
+        but allow the action if the user is already a member of the room.
+    
         Args:
             user: The Matrix ID of the user attempting to join (e.g., "@alice:example.com").
             room_id: The ID of the room being joined.
             is_invited: Whether the user was invited to the room.
-
+    
         Returns:
-            True if the user can join the room (has join_room permission or is invited),
+            True if the user can join the room (is already a member, has join_room permission, or is invited),
             False otherwise.
         """
+        # Check if the user is already a member of the room
+        joined_members = await self._api.get_joined_members(room_id)
+        if user in joined_members:
+            return True
+    
+        # If not a member, check join_room permission or invitation status
         has_join_room = self._apply_rules(user, JOIN_ROOM)
         if has_join_room or is_invited:
             return True
