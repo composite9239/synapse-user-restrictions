@@ -13,6 +13,8 @@
 # limitations under the License.
 from synapse.module_api import ModuleApi
 from synapse.module_api.errors import ConfigError
+import logging
+logger = logging.getLogger(__name__)
 
 from synapse_user_restrictions.config import (
     ALL_UNDERSTOOD_PERMISSIONS,
@@ -87,26 +89,19 @@ class UserRestrictionsModule:
         )
 
     async def callback_user_may_join_room(self, user: str, room_id: str, is_invited: bool) -> bool:
-        """
-        Check if a user is allowed to join a room based on the join_room permission and invitation status,
-        but allow the action if the user is already a member of the room.
+        logger.info(f"Checking {user} for {room_id}, is_invited={is_invited}")
+        try:
+            state = await self._api.get_room_state(room_id)
+            member_event = state.get(("m.room.member", user))
+            if member_event and member_event["content"].get("membership") == "join":
+                logger.info(f"{user} is joined, allowing action")
+                return True
+        except Exception as e:
+            logger.warning(f"State check failed for {room_id}: {str(e)}")
     
-        Args:
-            user: The Matrix ID of the user attempting to join (e.g., "@alice:example.com").
-            room_id: The ID of the room being joined.
-            is_invited: Whether the user was invited to the room.
-    
-        Returns:
-            True if the user can join the room (is already a member, has join_room permission, or is invited),
-            False otherwise.
-        """
-        # Check if the user is already a member of the room
-        joined_members = await self._api.get_joined_members(room_id)
-        if user in joined_members:
-            return True
-    
-        # If not a member, check join_room permission or invitation status
         has_join_room = self._apply_rules(user, JOIN_ROOM)
         if has_join_room or is_invited:
+            logger.info(f"Allowing join: has_join_room={has_join_room}, is_invited={is_invited}")
             return True
+        logger.info(f"Denying join: has_join_room={has_join_room}, is_invited={is_invited}")
         return False
